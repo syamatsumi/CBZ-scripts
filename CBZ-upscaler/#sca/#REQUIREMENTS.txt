@@ -1,0 +1,5 @@
+このディレクトリにnihui氏の「waifu2x-ncnn-vulkan」と「realcugan-ncnn-vulkan」が必要です。
+https://github.com/nihui/realcugan-ncnn-vulkan/releases
+https://github.com/nihui/waifu2x-ncnn-vulkan/releases
+
+この際、vcomp140.dllは新しい方で上書きしています。
