@@ -274,11 +274,14 @@ function Get-MTRX($srcPath,$tstPath,$tstarea,$SSIMchk) {
   # --- SSIM ---
   if ($SSIMchk) {
     $rSSIM = & magick @('compare','-metric','SSIM') + $cropArgs 2>&1
-    if ($rSSIM -match 'inf') { $result.SSIM = 1.0 }
+    if ($rSSIM -match 'inf') { $result.SSIM = 0.0 }
     elseif ($rSSIM -match '\(([\d\.]+)\)') {
-      $SSIMval = [double]$matches[1]
+      [double]$SSIMval = 0
+      [void][double]::TryParse($matches[1], [ref]$SSIMval)
       $matches.Clear() 
       $result.SSIM = 1.0 - $SSIMval
+    } else {
+      $result.SSIM = 1.0
   } }
   return $result  # 戻り値: [ordered]@{ PSNR = <double>; SSIM = <double> }
 }
