@@ -18,7 +18,7 @@ UHDディスプレイでボケない表示をするための一時データに�
 下記5点を作業用ディレクトリに移して、
 処理対象を同じフォルダに並べて使います。
 
-    #sca（フォルダ）
+    #exe（フォルダ）
     CBZupscaleVx_xxx.bat  
     CBZupscaleVx_orchestr.ps1  
     CBZupscaleVx_upscale.ps1  

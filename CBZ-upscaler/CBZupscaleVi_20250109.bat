@@ -4,6 +4,11 @@ cd /d "%~dp0"
 setlocal enabledelayedexpansion
 set "STARTTIME=%date% %time%"
 
+set EXTFOLDER=_ext
+set EXTPATH=%CD%\%EXTFOLDER%
+set POSTFIX=_sc
+set MAXPARAL=8
+
 rem === 7Zip パス（必要なら調整） ===
 set ZIP7=%ProgramFiles%\7-Zip\7z.exe
 if not exist "%ZIP7%" (
@@ -28,11 +33,6 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-set EXTFOLDER=_expand
-set EXTPATH=%CD%\%EXTFOLDER%
-set POSTFIX=_sc
-set MAXPARAL=6
-
 set MAINSCR_NAME=%~n0
 for /f "tokens=1,* delims=_" %%A in ("%MAINSCR_NAME%") do set "MAINSCR_BASE=%%A"
 set SUBSCR_ORCHESTR=%~dp0%MAINSCR_BASE%_orchestr.ps1
@@ -93,6 +93,7 @@ echo .
 set "ENDTIME=%date% %time%"
 echo すべての拡大処理が完了しました。.
 echo すべての処理にかかった時間.
-pwsh -command "('{0:hh\:mm\:ss\.ff}' -f ([datetime]'%ENDTIME%' - [datetime]'%STARTTIME%'))"
+pwsh -command "$ts=[datetime]'%ENDTIME%' - [datetime]'%STARTTIME%'; '{0}day {1:hh\:mm\:ss\.ff}' -f $ts.Days,$ts"
+
 pause
 endlocal
