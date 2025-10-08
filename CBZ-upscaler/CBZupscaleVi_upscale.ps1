@@ -312,8 +312,8 @@ function ChkLoop-Metrics ($srcPath, $chkPath, $tVal, $YUVmode, $counter, $Distor
     & magick "$chkPath" -alpha remove -alpha off -define png:color-type=2 -colorspace YUV -set colorspace Rec601YCbCr -sampling-factor 4:2:0 -depth 8 `
       -filter Box -resize ${width}x${height}! "$tstPathB"
   } else {
-    & magick "$srcPath" -alpha remove -alpha off -define png:color-type=2 -colorspace RGB -set colorspace RGB -channel RGB -depth 8 "$tstPathA"
-    & magick "$chkPath" -alpha remove -alpha off -define png:color-type=2 -colorspace RGB -set colorspace RGB -channel RGB -depth 8 `
+    & magick "$srcPath" -alpha remove -alpha off -define png:color-type=2 -colorspace sRGB -set colorspace sRGB -channel RGB -depth 8 "$tstPathA"
+    & magick "$chkPath" -alpha remove -alpha off -define png:color-type=2 -colorspace sRGB -set colorspace sRGB -channel RGB -depth 8 `
       -filter Box -resize ${width}x${height}! "$tstPathB"
   }
   $result = [ordered]@{ PSNR = 0.0; SSIM = 0.0 }
@@ -367,11 +367,11 @@ function ChkLoop-Metrics ($srcPath, $chkPath, $tVal, $YUVmode, $counter, $Distor
                   else {
                     Write-Host ("`r$counter [CheckS] {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $DistortionCause),($msgtmp = "${dirName}\${chkName} PSNR Check now.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkRed -NoNewline
   } } } } } } } } }
-  for ($i=0; $i -lt 5; $i++) {
+  for ($di=0; $di -lt 5; $di++) {
     try { [System.IO.File]::Delete($tstPathA); break }
     catch { Start-Sleep -Milliseconds 200 }
   }
-    for ($i=0; $i -lt 5; $i++) {
+  for ($di=0; $di -lt 5; $di++) {
     try { [System.IO.File]::Delete($tstPathB); break }
     catch { Start-Sleep -Milliseconds 200 }
   }
