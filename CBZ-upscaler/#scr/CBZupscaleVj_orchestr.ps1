@@ -26,4 +26,4 @@ param(
   } -ThrottleLimit $MxPal
 # 終了時間確定と表示
 $sw.Stop()
-Write-Host ("`r`n本サイクルの処理時間: {0:hh\:mm\:ss\.ff}        " -f $sw.Elapsed)
+Write-Host ("`r`n本サイクルの処理時間: {0:hh\:mm\:ss\.ff}    " -f $sw.Elapsed)

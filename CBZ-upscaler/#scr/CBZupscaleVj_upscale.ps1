@@ -24,8 +24,11 @@ $ainit = [PSCustomObject]@{
   tilesize  = '256'        # 画像を分割するサイズ。大きいほどメモリ食う。
   threadset = '1:4:4'      # スレッド割当てと比率（load:proc:save）
   # その他の挙動について
-  maxRetry   = 8     # アップスケールの再試行許容回数
-  deltemp    = $true # テンポラリと元画像の削除の実施
+  maxRetry   = 8       # アップスケールの再試行許容回数
+  deltemp    = $true   # テンポラリと元画像の削除の実施
+  x1denoSKIP = $true   # 等倍判定時にデノイズ処理を強制スキップする。
+  x1dskipTsh = 1       # 上記有効時、デノイズ処理をスキップする下限。
+  webpQtest  = $false  # Webp出力の品質検査・有効無効
   # 処理対象ファイルの周辺情報を取得
   counter  = "{0,9}" -f ("({0}/{1})" -f $dcount, $tcount)
   scrHome  = $ScriptHome
@@ -45,14 +48,15 @@ $ainit = [PSCustomObject]@{
 }
 # テストに関する閾値。
 $tinit = [PSCustomObject]@{ 
+  TotalPixelTsh  = 6.0   # 拡大を省略する総画素数(メガピクセル指定)
   LongSideThlen  = 3840  # 拡大を省略する長辺の閾値
   BothSideThlen  = 2048  # 拡大を省略する両辺の閾値
-  ShortSideThlen = 1024  # 2倍に拡大する短辺の閾値（これ以下は3倍）
+  ShortSideThlen = 1024  # 倍率x2が確定する短辺の閾値（これ未満は3倍）
   psnrTshOK      = 32    # 拡大後PSNRの閾値（再検査ライン）
   psnrTshVE      = 28    # 拡大後PSNRの閾値（要検証ライン）
   psnrTshNG      = 16    # 拡大後PSNRの閾値（不合格ライン）
-  ssimTshOK      = 0.97  # 拡大後SSIMの閾値（再検査ライン）
-  ssimTshVE      = 0.95  # 拡大後SSIMの閾値（要検証ライン）
+  ssimTshOK      = 0.96  # 拡大後SSIMの閾値（再検査ライン）
+  ssimTshVE      = 0.93  # 拡大後SSIMの閾値（要検証ライン）
   ssimTshNG      = 0.80  # 拡大後SSIMの閾値（不合格ライン）
   tilesizeL      = 256   # PSNR検査用のタイルサイズ
   tilesizeR      = 128   # 再検査時のタイルサイズ
@@ -165,7 +169,7 @@ function Generate-Paths ($ainit, $AImodel, $ratio, $NoiseLv) {
 function Resolve-Scale ($ainit, $tinit, $NoiseLv, $quality, $counter) {
   # (ここで必要な変数：srcName, srcExt, $srcPath, $rltvPath)
   $ainit.psobject.Properties | ForEach-Object { Set-Variable -Name $_.Name -Value $_.Value -Scope Local }
-  # (ここで必要な変数：$LongSideThlen, $BothSideThlen, $ShortSideThlen)
+  # (ここで必要な変数：$TotalPixelTsh, $LongSideThlen, $BothSideThlen, $ShortSideThlen)
   $tinit.psobject.Properties | ForEach-Object { Set-Variable -Name $_.Name -Value $_.Value -Scope Local }
   $AImodel = 'realcugan-pro'  # 初期選択のAIモデルを設定。
 
@@ -174,8 +178,10 @@ function Resolve-Scale ($ainit, $tinit, $NoiseLv, $quality, $counter) {
   $height = & magick identify -format "%h" "$srcPath"
   $width  = [int]$width
   $height = [int]$height
-  if ( ($width -ge $LongSideThlen -or  $height -ge $LongSideThlen) -or
-       ($width -ge $BothSideThlen -and $height -ge $BothSideThlen) ) {
+
+  if ( ((($width * $height) / 1e6) -ge $TotalPixelTsh) -or
+         ($width -ge $LongSideThlen -or  $height -ge $LongSideThlen) -or
+         ($width -ge $BothSideThlen -and $height -ge $BothSideThlen) ) {
     # 元からLossyのWebpは加工するメリット無さそうなので、全ての処理をスキップ。
     if ($srcExt -eq ".webp" -and $NoiseLv -ne -1) {
       Write-Host ("`r$counter  [CHECK] {0,-32} {1,-48}" -f ("({0} x {1}px Quality={2})" -f $width,$height,$quality),($msgtmp = "${rltvPath} is No need to process.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Blue -NoNewline
@@ -394,9 +400,19 @@ $sinit = Resolve-Scale $ainit $tinit $NoiseLv $quality
 # (更新対象：$AImodel, $width, $height, $needupscl, $scaleratio, $Upscaler, $ModelDir, $deNoiseLv, $Namefx)
 $sinit.psobject.Properties | ForEach-Object { Set-Variable -Name $_.Name -Value $_.Value -Scope Local }
 
-# アップスケール出力
+# デノイズ処理のみを省略する設定
+  if ($x1denoSKIP -and $scaleratio -eq 1 -and $NoiseLv -le $x1dskipTsh) {
+    $needupscl = $false
+    $Namefx = $srcName
+    }
+# アップスケール出力前準備
   if ($needupscl) { $retry = 0 }
-  else { $upPath = $srcPath }  # WebP変換後の元ファイル削除判断用の仕掛け
+  else { 
+    $upPath = $srcPath  # WebP変換後の元ファイル削除判断用の仕掛け
+    $PSNRmin = 81.0931072  # ログに明確な異常値を残す。
+    $SSIMmin = 1.45141919  # （桁揃えのため数値以外扱えない）
+    $AImodel = 'Skip-proc,dummy-val'
+  }
 # AIアップスケーリング。失敗したら設定を変えてリトライするためループ
 while ($needupscl -and $retry -lt $maxRetry) {
   $upfile   = "${Namefx}_temp_ups.png"
@@ -434,7 +450,7 @@ while ($needupscl -and $retry -lt $maxRetry) {
     # 結果が閾値未満（不合格）だった場合
     $retry++
     Write-Host ("`r$counter  [FAIL]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${upRltv} PSNR is too low.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkRed
-    $logBuffer2 += ("$counter	[FAIL]	(PSNR={0,5:F2}dB,SSIM={1,8:F6} by {2})	{3}	PSNR too low.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $upRltv, $retry, $maxRetry)
+    $logBuffer2 += ("$counter	[FAIL]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	PSNR too low.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $upRltv, $retry, $maxRetry)
     # リトライ前準備一式
     if ($retry -lt $maxRetry) {
       # アップスケール後の名前を変更する前に、ボツとなるデータを削除。
@@ -452,17 +468,17 @@ while ($needupscl -and $retry -lt $maxRetry) {
     # 検査に合格したら要スケーリングフラグを降ろす
     $needupscl = $false
     Write-Host ("`r$counter  [WARN]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${upRltv} Upscale is done.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkYellow -NoNewline
-    $logBuffer1 += ("$counter	[PASS]	(PSNR={0,5:F2}dB,SSIM={1,8:F6} by {2})	{3}	Upscale is done.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+    $logBuffer1 += ("$counter	[PASS]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	Upscale is done.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
   } else { 
     $needupscl = $false
     Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${upRltv} Upscale is done.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Green -NoNewline
-    $logBuffer1 += ("$counter	[PASS]	(PSNR={0,5:F2}dB,SSIM={1,8:F6} by {2})	{3}	Upscale is done.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+    $logBuffer1 += ("$counter	[PASS]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	Upscale is done.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
   }
 }
 # ここに来て「要アプスケ＝異常事態」ということ。明らかに変なので、敢えて掃除もしない。
 if ($needupscl) {
   Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${upRltv} Upscaling failed.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Red
-  $logBuffer2 += ("$counter	[FAIL]	(PSNR={0,5:F2}dB,SSIM={1,8:F6} by {2})	{3}	Upscaling failed.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $upRltv, $retry, $maxRetry)
+  $logBuffer2 += ("$counter	[FAIL]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	Upscaling failed.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $upRltv, $retry, $maxRetry)
   for ($i=0; $i -lt 5; $i++) {
     try { $logBuffer2 | Add-Content -Path $logfilePath2 -Encoding UTF8; break }
     catch { Start-Sleep -Milliseconds (200 * ($i+1)) }
@@ -486,22 +502,24 @@ if ($needupscl) {
   $waitCount = 0
   while (-not [System.IO.File]::Exists($wpPath) -and $waitCount -lt 50) { Start-Sleep -Milliseconds 200; $waitCount++ }
   Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "${wpRltv}  to be created...OK!  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkGray
-  $logBuffer1 += ("$counter	[PASS]	(PSNR={0,5:F2}dB,SSIM={1,8:F6} by {2})	{3}	created successfully.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+  $logBuffer1 += ("$counter	[PASS]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	created successfully.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
 
-# アプスケとWebPのPSNRもみたい場合。
-  $YUVmode = $true  # 変換先WebPが必ずYUV420のためそちらに揃える。
-  $wmtrx = ChkLoop-Metrics $upPath $wpPath $tinit2 $YUVmode $counter 'Webp_Lossy' 
-  $wpPSNRmin = $wmtrx.PSNR
-  $wpSSIMmin = $wmtrx.SSIM
-  if ([double]$wpPSNRmin -ge $tinit2.psnrTshOK -and [double]$PSNRmin -ge $psnrTshOK) {
-  # Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) )
-    $logBuffer1 += ("$counter	[PASS]	(PSNR={0,5:F2}dB,SSIM={1,8:F6} by webp)	(PSNR={2,5:F2}dB,SSIM={3,8:F6} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
-  } elseif ([double]$wpPSNRmin -gt $tinit2.psnrTshNG) {
-    Write-Host ("`r$counter  [WARN]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
-    $logBuffer1 += ("$counter	[WARN]	(PSNR={0,5:F2}dB,SSIM={1,8:F6} by webp)	(PSNR={2,5:F2}dB,SSIM={3,8:F6} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
-  } else {
-    Write-Host ("`r$counter [※FAIL] {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
-    $logBuffer2 += ("$counter	[※FAIL]	(PSNR={0,5:F2}dB,SSIM={1,8:F6} by webp)	(PSNR={2,5:F2}dB,SSIM={3,8:F6} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+# アプスケ画像とWebPとのPSNRもみたい場合。$webpQtestで有効無効を切り替える。
+  if ($webpQtest) {
+    $YUVmode = $true  # 変換先WebPが必ずYUV420のためそちらに揃える。
+    $wmtrx = ChkLoop-Metrics $upPath $wpPath $tinit2 $YUVmode $counter 'Webp_Lossy' 
+    $wpPSNRmin = $wmtrx.PSNR
+    $wpSSIMmin = $wmtrx.SSIM
+    if ([double]$wpPSNRmin -ge $tinit2.psnrTshOK -and [double]$PSNRmin -ge $psnrTshOK) {
+      Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
+      $logBuffer1 += ("$counter	[PASS]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by webp)	(PSNR={2,10:F7}dB,SSIM={3,10:F8} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+    } elseif ([double]$wpPSNRmin -gt $tinit2.psnrTshNG) {
+      Write-Host ("`r$counter  [WARN]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
+      $logBuffer1 += ("$counter	[WARN]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by webp)	(PSNR={2,10:F7}dB,SSIM={3,10:F8} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+    } else {
+      Write-Host ("`r$counter [※FAIL] {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
+      $logBuffer2 += ("$counter	[※FAIL]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by webp)	(PSNR={2,10:F7}dB,SSIM={3,10:F8} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+    }
   }
 # 元画像と中間PNGを削除
   if ($deltemp) {
