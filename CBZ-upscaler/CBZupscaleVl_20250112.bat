@@ -35,11 +35,11 @@ if errorlevel 1 (
 )
 set MAINSCR_NAME=%~n0
 for /f "tokens=1,* delims=_" %%A in ("%MAINSCR_NAME%") do set "MAINSCR_BASE=%%A"
-set SUBSCR_ORCHESTR=%~dp0\#scr\%MAINSCR_BASE%_orchestr.ps1
-if not exist "%SUBSCR_ORCHESTR%" echo Not found: %SUBSCR_ORCHESTR% & pause & exit /b 1
 set SUBSCR_UPSCALE=%~dp0\#scr\%MAINSCR_BASE%_upscale.ps1
 if not exist "%SUBSCR_UPSCALE%" echo Not found: %SUBSCR_UPSCALE% & pause & exit /b 1
-set SUBSCR_WIPEDIR=%~dp0\#scr\%MAINSCR_BASE%_wipedir.ps1
+set SUBSCR_ORCHESTR=%~dp0\#scr\CBZupsc\Orchestr.ps1
+if not exist "%SUBSCR_ORCHESTR%" echo Not found: %SUBSCR_ORCHESTR% & pause & exit /b 1
+set SUBSCR_WIPEDIR=%~dp0\#scr\CBZupsc\Wipedir.ps1
 if not exist "%SUBSCR_WIPEDIR%" echo Not found: %SUBSCR_WIPEDIR% & pause & exit /b 1
 
 for %%F in ("*.cbz") do (

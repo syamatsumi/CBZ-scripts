@@ -7,7 +7,7 @@
 ```
   CBZupscaleVx_xxx.bat  
   #scr  
-    └┬─ #exe ←今ここ   
+    └┬─ #exe ←今ここ  
       │    └┬ realcugan-ncnn-vulkan.exe  
       │      ├ waifu2x-ncnn-vulkan.exe  
       │      ├ vcomp140.dll  
@@ -23,9 +23,14 @@
       │      │   └ ...  
       │      └ models-se  
       │           └ ...  
-      ├ CBZupscaleVx_orchestr.ps1  
-      ├ CBZupscaleVx_upscale.ps1  
-      └ CBZupscaleVx_Wipedir.ps1
+      ├─ CBZupsc  
+      │    └┬ CBZupsc.psd1  
+      │      ├ CBZupsc.psm1  
+      │      ├ Metrics.psm1  
+      │      ├ Orchestr.ps1  
+      │      └ Wipedir.ps1  
+      ├ CBZupscaleVx_cfg.psd1  
+      └ CBZupscaleVx_upscale.ps1
 ```
 
 あと、しれっと長いフォルダ名も書き換えちゃってます。

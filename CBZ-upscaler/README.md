@@ -36,6 +36,7 @@ UHDディスプレイでボケない表示をするための一時データに�
 ```
   アップスケールを実施したい処理対象.cbz  
   CBZupscaleVx_xxx.bat  
+  README.md ←本文これ  
   #scr  
     └┬─ #exe  
       │    └┬ realcugan-ncnn-vulkan.exe  
@@ -53,9 +54,14 @@ UHDディスプレイでボケない表示をするための一時データに�
       │      │   └ ...  
       │      └ models-se  
       │           └ ...  
-      ├ CBZupscaleVx_orchestr.ps1  
-      ├ CBZupscaleVx_upscale.ps1  
-      └ CBZupscaleVx_Wipedir.ps1
+      ├─ CBZupsc  
+      │    └┬ CBZupsc.psd1  
+      │      ├ CBZupsc.psm1  
+      │      ├ Metrics.psm1  
+      │      ├ Orchestr.ps1  
+      │      └ Wipedir.ps1  
+      ├ CBZupscaleVx_cfg.psd1  
+      └ CBZupscaleVx_upscale.ps1
 ```
 
 

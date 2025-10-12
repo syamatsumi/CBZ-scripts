@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory = $true)]
   [string]$TgtRoot,          # 処理対象フォルダ
   [Parameter(Mandatory = $true)]
