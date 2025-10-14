@@ -44,8 +44,8 @@
   }
   # Write-hostやログの関連。
   writehostVal = @{ 
-    l1 = 42
-    l2 = 64
+    l1 = 40
+    l2 = 60
     l3 = '6:F3'   # 画面PSNR結果の桁
     l4 = '10:F7'  # ログPSNR結果の桁
     l5 = '10:F8'  # ログSSIM結果の桁
