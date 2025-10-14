@@ -41,8 +41,12 @@ set SUBSCR_ORCHESTR=%~dp0\#scr\CBZupsc\Orchestr.ps1
 if not exist "%SUBSCR_ORCHESTR%" echo Not found: %SUBSCR_ORCHESTR% & pause & exit /b 1
 set SUBSCR_WIPEDIR=%~dp0\#scr\CBZupsc\Wipedir.ps1
 if not exist "%SUBSCR_WIPEDIR%" echo Not found: %SUBSCR_WIPEDIR% & pause & exit /b 1
+title CBZups 開始
 
 for %%F in ("*.cbz") do (
+  set subtitval=%%~nF
+  set subtitval=!subtitval:~-12!
+  title CBZups !subtitval!解凍中
   set OUTDIR=%EXTFOLDER%\%%~nF%POSTFIX%
   if not exist "!OUTDIR!" mkdir "!OUTDIR!"
   echo [EXTRACT] !OUTDIR!
@@ -62,6 +66,10 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "%SUBSCR_WIPEDIR%" -TgtRoot "%EXTP
 
 pushd "%EXTFOLDER%"
 for /d %%D in (*) do (
+  set subtitval=%%~nD
+  set subtitval=!subtitval:~-15!
+  set subtitval=!subtitval:~0,12!
+  title CBZups !subtitval!処理中
   rem === アップスケール＆WebP圧縮する PS1 を呼び出す ===
   pwsh -NoProfile -ExecutionPolicy Bypass -File "%SUBSCR_ORCHESTR%" -TgtRoot "%%D" -MxPal %MAXPARAL% -Worker "%SUBSCR_UPSCALE%"
   if not exist "%%~nxD.cbz" (
@@ -94,6 +102,7 @@ set "ENDTIME=%date% %time%"
 echo すべての拡大処理が完了しました。.
 echo すべての処理にかかった時間.
 pwsh -command "$ts=[datetime]'%ENDTIME%' - [datetime]'%STARTTIME%'; '{0}day {1:hh\:mm\:ss\.ff}' -f $ts.Days,$ts"
+title CBZups 完了
 
 pause
 endlocal
