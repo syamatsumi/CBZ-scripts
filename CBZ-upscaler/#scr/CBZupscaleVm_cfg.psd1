@@ -42,4 +42,13 @@
     tilesizeR      = 512   # 再検査時のタイルサイズ
     tilesizeS      = 128   # 要検証時用のタイルサイズ
   }
+  # Write-hostやログの関連。
+  writehostVal = @{ 
+    l1 = 42
+    l2 = 64
+    l3 = '6:F3'   # 画面PSNR結果の桁
+    l4 = '10:F7'  # ログPSNR結果の桁
+    l5 = '10:F8'  # ログSSIM結果の桁
+    nnl = $true   # デバッグで改行させたい場合は $false に。
+  }
 }

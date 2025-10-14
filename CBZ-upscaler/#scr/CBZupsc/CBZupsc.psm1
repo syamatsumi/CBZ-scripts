@@ -90,8 +90,15 @@ function Update-Paths ($dinit, $AImodel, $scaleratio, $NoiseLv) {
   }
 }
 
+function Write-scaleInfoLine ($winit, $width, $height, $quality, $fileRltv, $msg, $color) {
+  Write-Host ( ("`r  [CHECK] " + $winit.c + $winit.l) -f
+    ($msgtmp1 = "({0} x {1}px Quality={2})" -f $width,$height,$quality).Substring([Math]::Max(0, $msgtmp1.Length - $winit.l1)),
+    ($msgtmp2 = "${rltvPath} ${msg2}  ").Substring([Math]::Max(0, $msgtmp2.Length - $winit.l2))
+  ) -ForegroundColor $color -NoNewline:$winit.nnl
+}
+
 # 拡大倍率とデノイズ有無の組み合わせ設定。 ##### 兼第一選択の控え #####
-function Resolve-Scale ($dinit, $tinit, $NoiseLv, $quality, $counter) {
+function Resolve-Scale ($dinit, $tinit, $winit, $NoiseLv, $quality) {
   # (ここで必要な変数：srcName, srcExt, $srcPath, $rltvPath)
   $dinit.psobject.Properties | ForEach-Object { Set-Variable -Name $_.Name -Value $_.Value -Scope Local }
   # (ここで必要な変数：$TotalPixelTsh, $LongSideThlen, $BothSideThlen, $ShortSideThlen)
@@ -109,33 +116,33 @@ function Resolve-Scale ($dinit, $tinit, $NoiseLv, $quality, $counter) {
          ($width -ge $BothSideThlen -and $height -ge $BothSideThlen) ) {
     # 元からLossyのWebpは加工するメリット無さそうなので、全ての処理をスキップ。
     if ($srcExt -eq ".webp" -and $NoiseLv -ne -1) {
-      Write-Host ("`r$counter  [CHECK] {0,-32} {1,-48}" -f ("({0} x {1}px Quality={2})" -f $width,$height,$quality),($msgtmp = "${rltvPath} is No need to process.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Blue -NoNewline
+      Write-scaleInfoLine $winit $width $height $quality $rltvPath 'is No need to process.' 'Blue'
       exit 0  # このままupscale.ps1スクリプトごと正常終了。
     # 拡大対象外かつロスレス形式
     } elseif ($srcExt -eq ".bmp" -or $srcExt -eq ".png" -or $srcExt -eq ".webp") {
       $needupscl = $false
       $scaleratio = 1
       $genpath = Update-Paths $dinit 'waifu2x-cunet' 1 $NoiseLv
-      Write-Host ("`r$counter  [CHECK] {0,-32} {1,-48}" -f ("({0} x {1}px Quality={2})" -f $width,$height,$quality),($msgtmp = "${rltvPath} is large enough.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Blue -NoNewline
+      Write-scaleInfoLine $winit $width $height $quality $rltvPath 'is large enough.' 'Blue'
     # 拡大対象外かつWebp形式以外（実質JPEG等倍）
     } else {
       $needupscl  = $true
       $scaleratio = 1
       $genpath = Update-Paths $dinit 'waifu2x-cunet' 1 $NoiseLv
-      Write-Host ("`r$counter  [CHECK] {0,-32} {1,-48}" -f ("({0} x {1}px Quality={2})" -f $width,$height,$quality),($msgtmp = "${rltvPath} is large enough.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Blue -NoNewline
+      Write-scaleInfoLine $winit $width $height $quality $rltvPath 'is large enough.' 'Blue'
     }
   # 拡大対象x2（短辺が閾値以上）
   } elseif ($width -ge $ShortSideThlen -and $height -ge $ShortSideThlen) {
     $needupscl = $true
     $scaleratio = 2
     $genpath = Update-Paths $dinit $AImodel 2 $NoiseLv
-    Write-Host ("`r$counter  [CHECK] {0,-32} {1,-48}" -f ("({0} x {1}px Quality={2})" -f $width,$height,$quality),($msgtmp = "${rltvPath} is Enlarge to x2.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Green -NoNewline
+    Write-scaleInfoLine $winit $width $height $quality $rltvPath 'is Enlarge to x2.' 'Green'
   # 拡大対象x3（短辺が閾値より小さい）
   } else {
     $needupscl = $true
     $scaleratio = 3
     $genpath = Update-Paths $dinit $AImodel 3 $NoiseLv
-    Write-Host ("`r$counter  [CHECK] {0,-32} {1,-48}" -f ("({0} x {1}px Quality={2})" -f $width,$height,$quality),($msgtmp = "${rltvPath} is Enlarge to x3.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Magenta -NoNewline
+    Write-scaleInfoLine $winit $width $height $quality $rltvPath 'is Enlarge to x3.' 'Magenta'
   }
   [PSCustomObject]@{
     width      = $width

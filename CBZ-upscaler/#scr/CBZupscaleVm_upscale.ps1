@@ -19,7 +19,7 @@ Import-Module "$PSScriptRoot\CBZupsc\Metrics.psm1" -Force
 
 # コンフィギュレーションファイルの参照
   $configPath = Join-Path $PSScriptRoot "${funcPrefix}_cfg.psd1"
-  if (Test-Path $configPath) { $importconfig = Import-PowerShellDataFile $configPath }
+  if (Test-Path -LiteralPath $configPath) { $importconfig = Import-PowerShellDataFile $configPath }
   else {
     Write-Warning "設定ファイルが見つかりません: $configPath"
     exit 1
@@ -27,6 +27,8 @@ Import-Module "$PSScriptRoot\CBZupsc\Metrics.psm1" -Force
   $ainit  = [PSCustomObject]$importconfig.aicfg
   $tinit  = [PSCustomObject]$importconfig.tinit
   $tinit2 = [PSCustomObject]$importconfig.tinit2
+  $whVal  = [PSCustomObject]$importconfig.writehostVal
+
 # パス設定
   $dirPath  = Split-Path -Parent $TgtFile
   $rltvPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $TgtFile)
@@ -35,7 +37,6 @@ Import-Module "$PSScriptRoot\CBZupsc\Metrics.psm1" -Force
 $dinit = [PSCustomObject]@{
   exeDir   = $ainit.exeDir
   # 処理対象ファイルの周辺情報を取得
-  counter  = "{0,9}" -f ("({0}/{1})" -f $dcount, $tcount)
   scrHome  = $PSScriptRoot
   dirPath  = $dirPath
   dirName  = Split-Path -Leaf ($dirPath)
@@ -48,9 +49,44 @@ $dinit = [PSCustomObject]@{
   today        = $today
   logfilePath1 = Join-Path $PSScriptRoot ("upscrlogPASS_{0}.txt" -f $today)
   logfilePath2 = Join-Path $PSScriptRoot ("upscrlogFAIL_{0}.txt" -f $today)
+  logfilePath3 = Join-Path $PSScriptRoot ("upscrlogWEBP_{0}.txt" -f $today)
   logBuffer1   = @()
   logBuffer2   = @()
+  logBuffer3   = @()
   }
+
+# Write-host用の変数。
+$winit = [PSCustomObject]@{
+  c   = "{0,9}" -f ("({0}/{1})" -f $dcount, $tcount)
+  l   = "{0,-" + $whVal.l1 + "} {1,-" + $whVal.l2 + "}"
+  p   = "(PSNR={0,$($whVal.l3)}dB by {1})"
+  log = "`tPSNR={0,$($whVal.l4)}dB`tSSIM={1,$($whVal.l5)}`tby {2}`t"
+  nnl = $whVal.nnl
+  try = 'try(0/0)'
+  l1  = $whVal.l1
+  l2  = $whVal.l2
+  l3  = $whVal.l3
+  l4  = $whVal.l4
+  l5  = $whVal.l5
+}
+function Write-InfoLineErr ($msg1, $winit, $Errcode, $DistortionCause, $fileRltv, $msg2, [string]$color) {
+  Write-Host ( ($msg1 + $winit.c + $winit.l) -f
+    ($msgtmp1 = "(EXTCODE=${Errcode} by ${DistortionCause}) $winit.try").Substring([Math]::Max(0, $msgtmp1.Length - $winit.l1)),
+    ($msgtmp2 = "${fileRltv} ${msg2}  ").Substring([Math]::Max(0, $msgtmp2.Length - $winit.l2))
+  ) -ForegroundColor $color  # -NoNewline:$winit.nnl
+}
+function Write-InfoLinePSNR ($msg1, $winit, $PSNRmin, $DistortionCause, $fileRltv, $msg2, [string]$color = $null, [switch]$newline) {
+  $nnl = if ($newline) { $false } else { $winit.nnl }
+  $options = @{ NoNewline = $nnl }
+  if ([enum]::IsDefined([ConsoleColor], $color)) {
+    $options['ForegroundColor'] = $color
+  }
+  Write-Host ( ($msg1 + $winit.c + $winit.l) -f
+    ($msgtmp1 = ($winit.p + $winit.try) -f $PSNRmin, $DistortionCause).Substring([Math]::Max(0, $msgtmp1.Length - $winit.l1)),
+    ($msgtmp2 = "${fileRltv} ${msg2}  ").Substring([Math]::Max(0, $msgtmp2.Length - $winit.l2))
+  ) @options
+}
+
 
 ######## MAIN ########
 # 初期値を展開する。
@@ -60,7 +96,7 @@ $dinit = [PSCustomObject]@{
   $mtcfg     = Get-Mediatype $srcPath
   $NoiseLv = $mtcfg.lv
   $quality = $mtcfg.qt
-  $sinit = Resolve-Scale $dinit $tinit $NoiseLv $quality
+  $sinit = Resolve-Scale $dinit $tinit $winit $NoiseLv $quality
 # (更新対象：$AImodel, $width, $height, $needupscl, $scaleratio, $Upscaler, $ModelDir, $deNoiseLv, $Namefx)
   $sinit.psobject.Properties | ForEach-Object { Set-Variable -Name $_.Name -Value $_.Value -Scope Local }
 # 値の受け渡し関連チェック（DEBUG）
@@ -95,32 +131,34 @@ while ($needupscl -and $retry -lt $maxRetry) {
   # 失敗したらアップスケールの設定を変更してリトライ。
   if ($LASTEXITCODE -ne 0) {
     $retry++
-    Write-Host ("`r$counter  [CHECK] {0,-32} {1,-48}" -f ($msgtmp1 = "(EXTCODE=${LASTEXITCODE} by ${AImodel})").Substring([Math]::Max(0, $msgtmp1.Length - 32)),($msgtmp2 = "(try${retry}/${maxRetry}) ${upRltv} Upscaling failed.  ").Substring([Math]::Max(0, $msgtmp2.Length - 48)) ) -ForegroundColor DarkRed
-    $logBuffer2 += ("$counter	[FAIL]	(EXTCODE={0})	{1}	Upscaling is fail.	(try {2}/{3})" -f $LASTEXITCODE, $upRltv, $retry, $maxRetry)
+    $winit.try = "(try${retry}/${maxRetry})"
+    Write-InfoLineErr '  [FAIL]  ' $winit $LASTEXITCODE $AImodel $upRltv 'Upscaling failed.' 'DarkRed'
+    $logBuffer2 += (("[FAIL]`t(EXTCODE={0})`t" + $winit.try + "`t{1}`tUpscaling is fail.") -f $LASTEXITCODE, $upRltv)
     $altmode = Switch-altmodloop $dinit $AImodel $scaleratio $NoiseLv
     # (更新対象：$AImodel, $deNoiseLv, $ModelDir, $Namefx, $Upscaler, $scaleratio)
     $altmode.psobject.Properties | ForEach-Object { Set-Variable -Name $_.Name -Value $_.Value -Scope Local }
-    if (Test-Path $upPath) {
+    if (Test-Path -LiteralPath $upPath) {
       try { Remove-Item -LiteralPath $upPath -Force -ErrorAction Stop }
-      catch { Write-Host ("`r$counter  [WARN]  {0,-32} {1,-48}" -f ($msgtmp1 = "(EXTCODE=${LASTEXITCODE} by ${AImodel})").Substring([Math]::Max(0, $msgtmp1.Length - 32)),($msgtmp2 = "${upRltv} Failed to delete.  ").Substring([Math]::Max(0, $msgtmp2.Length - 48)) ) -ForegroundColor Yellow -NoNewline }
+      catch { Write-InfoLineErr '  [WARN]  ' $winit $LASTEXITCODE $AImodel $upRltv 'Failed to delete.' 'Yellow' }
     } continue
   }
   # まれに出力完了前に次に進むため出力待ちを実施
   $waitCount = 0
-  while (-not (Test-Path $upPath) -and $waitCount -lt 10) {
+  while (-not (Test-Path -LiteralPath $upPath) -and $waitCount -lt 10) {
     Start-Sleep -Milliseconds 200; $waitCount++ 
   }
   # チェック画像の形式をRGBかYUVに揃える。デノイズ有効のパターンが大抵YUVのため。
   $YUVmode = ($deNoiseLv -ne -1)
   # アップスケール前後をタイル分割して部分毎にテストする
-  $umtrx = Search-Metrics $srcPath $upPath $tinit $YUVmode $counter $AImodel
+  $umtrx = Search-Metrics $srcPath $upPath $tinit $YUVmode $winit $AImodel
   $PSNRmin = $umtrx.PSNR
   $SSIMmin = $umtrx.SSIM
   if ([double]$PSNRmin -le $psnrTshNG -or [double]$SSIMmin -le $ssimTshNG) {
     # 結果が閾値未満（不合格）だった場合
     $retry++
-    Write-Host ("`r$counter  [FAIL]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${upRltv} PSNR is too low.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkRed
-    $logBuffer2 += ("$counter	[FAIL]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	PSNR too low.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $upRltv, $retry, $maxRetry)
+    $winit.try = "(try${retry}/${maxRetry})"
+    Write-InfoLinePSNR "`r  [FAIL]  " $winit $PSNRmin $AImodel $upRltv 'PSNR is too low.' 'DarkRed' -newline
+    $logBuffer2 += (("[FAIL]`t" + $winit.c + $winit.log + $winit.try + "`t{3}`tPSNR too low.") -f $PSNRmin, $SSIMmin, $AImodel, $upRltv)
     # リトライ前準備一式
     if ($retry -lt $maxRetry) {
       # アップスケール後の名前を変更する前に、ボツとなるデータを削除。
@@ -137,22 +175,24 @@ while ($needupscl -and $retry -lt $maxRetry) {
   } elseif ([double]$PSNRmin -lt $psnrTshOK) { 
     # 検査に合格したら要スケーリングフラグを降ろす
     $needupscl = $false
-    Write-Host ("`r$counter  [WARN]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${upRltv} Upscale is done.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkYellow -NoNewline
-    $logBuffer1 += ("$counter	[PASS]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	Upscale is done.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+    Write-InfoLinePSNR "`r  [WARN]  " $winit $PSNRmin $AImodel $upRltv 'Upscale is done.' 'DarkYellow'
+    $logBuffer1 += (("[WARN]`t" + $winit.c + $winit.log + $winit.try + "`t{3}`tUpscale is done.") -f $PSNRmin, $SSIMmin, $AImodel, $upRltv)
   } else { 
     $needupscl = $false
-    Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${upRltv} Upscale is done.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Green -NoNewline
-    $logBuffer1 += ("$counter	[PASS]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	Upscale is done.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+    Write-InfoLinePSNR "`r  [PASS]  " $winit $PSNRmin $AImodel $upRltv 'Upscale is done.' 'Green'
+    $logBuffer1 += (("[PASS]`t" + $winit.c + $winit.log + $winit.try + "`t{3}`tUpscale is done.") -f $PSNRmin, $SSIMmin, $AImodel, $upRltv)
   }
 }
 # ここに来て「要アプスケ＝異常事態」ということ。明らかに変なので、敢えて掃除もしない。
 if ($needupscl) {
-  Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${upRltv} Upscaling failed.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor Red
-  $logBuffer2 += ("$counter	[FAIL]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	Upscaling failed.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $upRltv, $retry, $maxRetry)
+  Write-InfoLinePSNR "`r  [FAIL]  " $winit $PSNRmin $AImodel $upRltv 'Upscaling failed.(loop ended.)' 'Red' -newline
+    $logBuffer2 += (("[FAIL]`t" + $winit.c + $winit.log + $winit.try + "`t{3}`tUpscaling failed. (loop ended before completion)") -f $PSNRmin, $SSIMmin, $AImodel, $upRltv)
   for ($i=0; $i -lt 5; $i++) {
     try { $logBuffer2 | Add-Content -Path $logfilePath2 -Encoding UTF8; break }
     catch { Start-Sleep -Milliseconds (200 * ($i+1)) }
-  } return  # この画像は拡大工程をスキップしてエラーを返す（処理を止めたいなら throw に変更）
+  } 
+  # 後続のWebP変換処理に渡さずここで終了。
+  return
 }
 # WebPに変換
   $wpFile = "${Namefx}.webp"
@@ -167,30 +207,30 @@ if ($needupscl) {
     -define webp:alpha-quality=100 `
     "$wpPath"
 # 出力待ち
-  Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "${wpRltv}  to be created...     ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkGray -NoNewline
+  Write-InfoLinePSNR "`r  [WAIT]  " $winit $PSNRmin $AImodel $wpRltv 'to be created...   ' 'DarkGray'
   $waitCount = 0
   while (-not [System.IO.File]::Exists($wpPath) -and $waitCount -lt 50) { Start-Sleep -Milliseconds 200; $waitCount++ }
-  Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "${wpRltv}  to be created...OK!  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkGray -NoNewline
-  $logBuffer1 += ("$counter	[PASS]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by {2})	{3}	created successfully.	(try {4}/{5})" -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+  Write-InfoLinePSNR "`r  [PASS]  " $winit $PSNRmin $AImodel $wpRltv 'to be created...OK!' 'DarkGreen'
+  $logBuffer1 += (("[PASS]`t" + $winit.c + $winit.log + $winit.try + "`t{3}`tcreated successfully.") -f $PSNRmin, $SSIMmin, $AImodel, $wpRltv)
 
 # アプスケ画像とWebPとのPSNRもみたい場合。$webpQtestで有効無効を切り替える。
   if ($webpQtest) {
     $YUVmode = $true  # 変換先WebPが必ずYUV420のためそちらに揃える。
-    $wmtrx = Search-Metrics $upPath $wpPath $tinit2 $YUVmode $counter 'Webp_Lossy' 
+    $wmtrx = Search-Metrics $upPath $wpPath $tinit2 $YUVmode $winit 'Webp_Lossy' 
     $wpPSNRmin = $wmtrx.PSNR
     $wpSSIMmin = $wmtrx.SSIM
     if ([double]$wpPSNRmin -ge $tinit2.psnrTshOK -and [double]$PSNRmin -ge $psnrTshOK) {
-      Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
-      $logBuffer1 += ("$counter	[PASS]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by webp)	(PSNR={2,10:F7}dB,SSIM={3,10:F8} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+      Write-InfoLinePSNR "`r  [PASS]  " $winit $wpPSNRmin 'magick-webp' $wpRltv 'created successfully.' 'Green'
+      $logBuffer3 += (("[PASS]`t" + $winit.c + $winit.log + $winit.try + "`t{3}`tcreated successfully.") -f $wpPSNRmin, $wpSSIMmin, 'magick-webp', $wpRltv)
     } elseif ([double]$wpPSNRmin -gt $tinit2.psnrTshNG) {
-      Write-Host ("`r$counter  [WARN]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
-      $logBuffer1 += ("$counter	[WARN]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by webp)	(PSNR={2,10:F7}dB,SSIM={3,10:F8} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+      Write-InfoLinePSNR "`r  [WARN]  " $winit $wpPSNRmin 'magick-webp' $wpRltv 'created with inconsistent quality...' 'Yellow'
+      $logBuffer3 += (("[WARN]`t" + $winit.c + $winit.log + $winit.try + "`t{3}`tcreated with inconsistent quality...") -f $wpPSNRmin, $wpSSIMmin, 'magick-webp', $wpRltv)
     } else {
-      Write-Host ("`r$counter [※FAIL] {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by webp)" -f $wpPSNRmin),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
-      $logBuffer2 += ("$counter	[※FAIL]	(PSNR={0,10:F7}dB,SSIM={1,10:F8} by webp)	(PSNR={2,10:F7}dB,SSIM={3,10:F8} by {4})	{5}	created successfully.	(try {6}/{7})" -f $wpPSNRmin, $wpSSIMmin, $PSNRmin, $SSIMmin, $AImodel, $wpRltv, $retry, $maxRetry)
+      Write-InfoLinePSNR "`r  [FAIL]  " $winit $wpPSNRmin 'magick-webp' $wpRltv 'created with poor quality!' 'Red'
+      $logBuffer3 += (("[FAIL]`t" + $winit.c + $winit.log + $winit.try + "`t{3}`tcreated with poor quality!") -f $wpPSNRmin, $wpSSIMmin, 'magick-webp', $wpRltv)
     }
   }
-# 元画像と中間PNGを削除
+# 元画像と中間PNGを削除(デバッグ時は $deltemp を $false に。)
   if ($deltemp) {
     for ($i=0; $i -lt 5; $i++) {
       try   { [System.IO.File]::Delete($srcPath); break }
@@ -200,18 +240,21 @@ if ($needupscl) {
       for ($i=0; $i -lt 5; $i++) {
         try   { [System.IO.File]::Delete($upPath); break }
         catch { Start-Sleep -Milliseconds 200 }
-      }
-    }
-  }
+  } } }
 # ログ出力
-  Write-Host ("`r$counter  [PASS]  {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $AImodel),($msgtmp = "(try${retry}/${maxRetry}) ${wprltv} created successfully.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) )
+  Write-InfoLinePSNR "`r  [PASS]  " $winit $PSNRmin $AImodel $wpRltv 'created successfully.' -Newline
   if ($logBuffer1.Count -gt 0) {
     for ($i=0; $i -lt 5; $i++) {
       try { $logBuffer1[-1] | Add-Content -Path $logfilePath1 -Encoding UTF8; break }
       catch { Start-Sleep -Milliseconds (200 * ($i+1)) }
-    }
-  }
-  for ($i=0; $i -lt 5; $i++) {
-    try { $logBuffer2 | Add-Content -Path $logfilePath2 -Encoding UTF8; break }
-    catch { Start-Sleep -Milliseconds (200 * ($i+1)) }
-  }
+  } }
+  if ($logBuffer2.Count -gt 0) {
+    for ($i=0; $i -lt 5; $i++) {
+      try { $logBuffer2 | Add-Content -Path $logfilePath2 -Encoding UTF8; break }
+      catch { Start-Sleep -Milliseconds (200 * ($i+1)) }
+  } }
+  if ($logBuffer3.Count -gt 0) {
+    for ($i=0; $i -lt 5; $i++) {
+      try { $logBuffer3 | Add-Content -Path $logfilePath3 -Encoding UTF8; break }
+      catch { Start-Sleep -Milliseconds (200 * ($i+1)) }
+  } }
