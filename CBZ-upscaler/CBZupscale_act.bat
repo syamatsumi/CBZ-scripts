@@ -7,7 +7,7 @@ set "STARTTIME=%date% %time%"
 set EXTFOLDER=_ext
 set EXTPATH=%CD%\%EXTFOLDER%
 set POSTFIX=_sc
-set MAXPARAL=6
+set MAXPARAL=8
 
 rem === 7Zip パス（必要なら調整） ===
 set ZIP7=%ProgramFiles%\7-Zip\7z.exe
@@ -74,7 +74,7 @@ for /d %%D in (*) do (
   pwsh -NoProfile -ExecutionPolicy Bypass -File "%SUBSCR_ORCHESTR%" -TgtRoot "%%D" -MxPal %MAXPARAL% -Worker "%SUBSCR_UPSCALE%"
   if not exist "%%~nxD.cbz" (
     rem === 生ファイル残存チェック ===
-    dir /b /s "%%D\*.jpg" "%%D\*.jpeg" "%%D\*.png" >nul 2>nul
+    dir /b /s "%%D\*.jpg" "%%D\*.jpeg" "%%D\*.png" "%%D\*.zip" "%%D\*.avi" "%%D\*.mp4" "%%D\*.webm" "%%D\*.mkv" "%%D\*.mov" >nul 2>nul
     if errorlevel 1 (
       set ZIPNAME=%%~nxD.zip
       set CBZNAME=%%~nxD.cbz

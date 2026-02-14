@@ -11,13 +11,24 @@ if not exist "%WINRAR%" (
   exit /b 1
 )
 
+rem === ここで一括パスワードを指定 ===
+set "ZIPPASS="
+
+echo チェック前に、バッチ実行に邪魔な文字がある場合はファイル名を書き換えます。
+pause
+
+echo === 記号の置換 ===
+powershell -noprofile -executionpolicy bypass -file "記号書き換え_repsym.ps1"
+
 set /a CNT_ALL=0, CNT_OK=0, CNT_WARN=0, CNT_NG=0
 echo === WinRAR Test (ZIP/CBZ/RAR/7Z) ===
-
 call :TEST_SET "*.zip"
 call :TEST_SET "*.cbz"
 call :TEST_SET "*.rar"
+call :TEST_SET "*.cbr"
 call :TEST_SET "*.7z"
+call :TEST_SET "*.cb7"
+call :TEST_SET "*.lzh"
 
 if "!CNT_ALL!"=="0" (
   echo 対象なし。
@@ -52,8 +63,8 @@ exit /b
 set FILE=%~1
 set /a CNT_ALL+=1
 
-rem -idq:静穏、-y:全てYes、-p-:パス要求は禁止（暗号化は即NG）
-"%WINRAR%" t -ibck -idq -y -p- "!FILE!" >nul 2>&1
+rem -idq:静穏、-y:全てYes、-p:パスワード
+"%WINRAR%" t -ibck -idq -y -p%ZIPPASS% "!FILE!" >nul 2>&1
 set RC=%ERRORLEVEL%
 
 if "!RC!"=="0" (

@@ -27,6 +27,8 @@ rem フォルダ内のファイルを走査し、現在の名前が PREFIX+名�
       echo スキップ（BAT）：%%D
     ) else if /i "!EXT!"==".ps1" (
       echo スキップ（PS1）：%%D
+    ) else if /i "!EXT!"==".lnk" (
+      echo スキップ（リンク）：%%D
     ) else if /i "!CURRHEAD!"=="%PREFIX%" (
       echo スキップ：!CURRNAME! は%PREFIX%が既に付いています.
     ) else if exist "!RENAMETO!" (

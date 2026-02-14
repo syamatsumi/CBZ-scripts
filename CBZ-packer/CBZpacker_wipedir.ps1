@@ -1,10 +1,11 @@
-﻿param([string]$TgtRoot = ".")
-$scriptDir = if ($TgtRoot -eq ".") { Split-Path -Parent $MyInvocation.MyCommand.Definition } else { $TgtRoot }
+﻿param(
+    [Parameter(Mandatory=$false)]
+    [ValidateScript({Test-Path -LiteralPath $_ -PathType Container})]
+    [string]$Root = $PSScriptRoot
+)
 
 # 特定のファイルを事前に削除（掃除）
-$wildcardPath = Join-Path $scriptDir '*'
-Get-ChildItem -LiteralPath $scriptDir -Recurse -File -Force -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -in @("desktop.ini","Thumbs.db",".DS_Store") } |
+Get-ChildItem -LiteralPath $Root -Recurse -File -Include "desktop.ini","Thumbs.db",".DS_Store" -Force -ErrorAction SilentlyContinue |
   ForEach-Object {
     # まれに属性が邪魔するので Normal にしてから削除
     try { $_.Attributes = 'Normal' } catch {}
@@ -12,13 +13,13 @@ Get-ChildItem -LiteralPath $scriptDir -Recurse -File -Force -ErrorAction Silentl
   }
 
 # ツリー全体から __MACOSX ディレクトリを再帰的に削除
-Get-ChildItem -LiteralPath $scriptDir -Recurse -Directory -Filter '__MACOSX' -Force -ErrorAction SilentlyContinue |
+Get-ChildItem -LiteralPath $Root -Recurse -Directory -Filter '__MACOSX' -Force -ErrorAction SilentlyContinue |
   ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
 
 # 空ディレクトリを削除（末端から順に）
 do {
   $deleted = 0
-  Get-ChildItem -LiteralPath $scriptDir -Recurse -Directory -Force |
+  Get-ChildItem -LiteralPath $Root -Recurse -Directory -Force |
     Where-Object { -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) } |  # ジャンクション等は除外
     Sort-Object { $_.FullName.Split([IO.Path]::DirectorySeparatorChar).Count } -Descending |
     ForEach-Object {

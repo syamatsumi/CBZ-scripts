@@ -6,8 +6,10 @@
     exeDir    = '#exe'       # exeを格納したディレクトリの名前
     gpuselect = 'auto'       # 利用するGPUの選択（auto,"0","0,1"など）
     tilesize  = '256'        # 画像を分割するサイズ。大きいほどメモリ食う。
-    threadset = '1:4:4'      # スレッド割当てと比率（load:proc:save）
+    threadset = '1:2:4'      # スレッド割当てと比率（load:proc:save）
     # その他の挙動について
+    webplless  = $false  # WebPをロスレス形式にする場合は$true
+    webpQual   = 90      # WebPロッシー形式の場合の品質ターゲット
     maxRetry   = 8       # アップスケールの再試行許容回数
     deltemp    = $true   # テンポラリと元画像の削除の実施
     x1denoSKIP = $true   # 等倍判定時にデノイズ処理を強制スキップする。
@@ -20,15 +22,17 @@
     LongSideThlen  = 3840  # 拡大を省略する長辺の閾値
     BothSideThlen  = 2048  # 拡大を省略する両辺の閾値
     ShortSideThlen = 1024  # 倍率x2が確定する短辺の閾値（これ未満は3倍）
+    FApsnrTsh      = 24    # 画像全体PSNRの閾値（不合格ライン）
+    FAssimTsh      = 0.70  # 画像全体SSIMの閾値（不合格ライン）
     psnrTshOK      = 32    # PSNRの閾値（再検査ライン）
     psnrTshVE      = 28    # PSNRの閾値（要検証ライン）
     psnrTshNG      = 16    # PSNRの閾値（不合格ライン）
     ssimTshOK      = 0.70  # SSIMの閾値（再検査ライン）
     ssimTshVE      = 0.60  # SSIMの閾値（要検証ライン）
     ssimTshNG      = 0.50  # SSIMの閾値（不合格ライン）
-    tilesizeL      = 256   # PSNR検査用のタイルサイズ
-    tilesizeR      = 128   # 再検査時のタイルサイズ
-    tilesizeS      = 32    # 要検証時のタイルサイズ
+    tilesizeL      = 251   # PSNR検査用のタイルサイズ
+    tilesizeR      = 127   # 再検査時のタイルサイズ
+    tilesizeS      = 31    # 要検証時のタイルサイズ
   }
   # WebP変換後の画質評価を有効にする場合は要設定。
   tinit2 = @{ 
@@ -44,7 +48,7 @@
   }
   # Write-hostやログの関連。
   writehostVal = @{ 
-    l1 = 40
+    l1 = 45
     l2 = 60
     l3 = '6:F3'   # 画面PSNR結果の桁
     l4 = '10:F7'  # ログPSNR結果の桁

@@ -28,11 +28,27 @@ function Get-Metrics($srcPath,$tstPath,$tstarea,$SSIMchk) {
   return $result  # 戻り値: [ordered]@{ PSNR = <double>; SSIM = <double> }
 }
 
-# 主にPSNRをタイルに別けて検査する。
-function Search-Metrics ($srcPath, $chkPath, $tVal, $YUVmode, $counter, $DistortionCause) {
-  # ($psnrTshOK $psnrTshVE $psnrTshNG $ssimTshOK $ssimTshVE $ssimTshNG $tilesizeL $tilesizeR $tilesizeSの展開)
-  $tVal.psobject.Properties | ForEach-Object { Set-Variable -Name $_.Name -Value $_.Value -Scope Local }
+function Write-metricsInfoLine ($msg1, $winit, $PSNRmin, $fPSNR, $DistortionCause, $fileRltv, $msg2, $color) {
+  # 第3カラムの内容
+  $tmp3 = ("(PSNR={0,$($winit.l3)}/{1,2:F0}dB by {2})" + $winit.try) -f $PSNRmin, $fPSNR, $DistortionCause
+  $pos3 = [Math]::Max(0, $tmp3.Length - $winit.l1)
+  $col3 = $tmp3.Substring($pos3)
+  # 第4カラムの内容
+  $tmp4 = "${fileRltv} ${msg2}  "
+  $pos4 = [Math]::Max(0, $tmp4.Length - $winit.l2)
+  $col4 = $tmp4.Substring($pos4)
+  # メッセージの集約と表示
+  $message = ($msg1 + $winit.c + $winit.l) -f $col3, $col4
+  Write-Host $message -ForegroundColor $color -NoNewline:$winit.nnl
+}
 
+
+
+# 主にPSNRをタイルに別けて検査する。
+function Search-Metrics ($srcPath, $chkPath, $testVal, $YUVmode, $winit, $DistortionCause) {
+  # ($psnrTshOK $FApsnnrTsh $FAssimTsh $psnrTshVE $psnrTshNG $ssimTshOK $ssimTshVE $ssimTshNG $tilesizeL $tilesizeR $tilesizeSの展開)
+  $testVal.psobject.Properties | ForEach-Object { Set-Variable -Name $_.Name -Value $_.Value -Scope Local }
+  
   $chkName   = [System.IO.Path]::GetFileNameWithoutExtension($chkPath)
   $chkDir    = Split-Path -Parent $chkPath
   $dirName   = Split-Path -Leaf $chkDir
@@ -58,14 +74,28 @@ function Search-Metrics ($srcPath, $chkPath, $tVal, $YUVmode, $counter, $Distort
     & magick "$chkPath" -alpha remove -alpha off -define png:color-type=2 -colorspace sRGB -set colorspace sRGB -channel RGB -depth 8 `
       -filter Box -resize ${width}x${height}! "$tstPathB"
   }
+  #拡大縮小に伴うエッジアーティファクトを評価外にしたいので周辺1pxを除去する。
+  if ($width -ge 3 -and $height -ge 3 ){
+    $width  = $width-2
+    $height = $height-2
+    $cropGeom = "${width}x${height}+1+1"
+    & magick "$tstPathA" -colorspace sRGB -set colorspace sRGB -crop $cropGeom +repage "$tstPathA"
+    & magick "$tstPathB" -colorspace sRGB -set colorspace sRGB -crop $cropGeom +repage "$tstPathB"
+  }
+  
   $result = [ordered]@{ PSNR = 0.0; SSIM = 0.0 }
   $mtrx = Get-Metrics $tstPathA $tstPathB "${width}x${height}+0+0" -SSIMchk:$true
-  $PSNRmin = $PSNR = $mtrx.PSNR
-  $SSIMmin = $SSIM = $mtrx.SSIM
+  $PSNRmin = $fPSNR = $PSNR = $mtrx.PSNR
+  $SSIMmin = $fSSIM = $SSIM = $mtrx.SSIM
 
+  # 画像断片の評価を取得。
   :Tileloop
   for ($lx = 0; $lx -lt $width; $lx += $tilesizeL) {
     for ($ly = 0; $ly -lt $height; $ly += $tilesizeL) {
+      # 全体でコケてるなら初手でループ終了。
+      if ([double]$fPSNR -lt $FApsnrTsh) { break Tileloop }
+      if ([double]$fSSIM -lt $FAssimTsh) { break Tileloop }
+      # 全体に合格しているなら本ループへ
       $tstareaL = "${tilesizeL}x${tilesizeL}+${lx}+${ly}"
       $mtrx = Get-Metrics $tstPathA $tstPathB $tstareaL -SSIMchk $true
       $PSNR = $mtrx.PSNR
@@ -75,7 +105,7 @@ function Search-Metrics ($srcPath, $chkPath, $tVal, $YUVmode, $counter, $Distort
       if ([double]$PSNR -lt $psnrTshNG) { break Tileloop }
       if ([double]$SSIM -lt $ssimTshNG) { break Tileloop }
       if ([double]$PSNR -lt $psnrTshOK -or [double]$SSIM -lt $ssimTshOK ) {
-        Write-Host ("`r$counter [CheckL] {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $DistortionCause),($msgtmp = "${dirName}\${chkName} PSNR Check now.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
+        Write-metricsInfoLine "`r [CheckL] " $winit $PSNRmin $fPSNR $DistortionCause "${dirName}\${chkName}" 'PSNR Check now.' 'DarkGreen'
         if ($lx + $tilesizeL -gt $width) { $endposRx = $width }
         else { $endposRx = $lx + $tilesizeL }
         if ($ly + $tilesizeL -gt $height) { $endposRy = $height }
@@ -91,7 +121,7 @@ function Search-Metrics ($srcPath, $chkPath, $tVal, $YUVmode, $counter, $Distort
             if ([double]$PSNR -lt $psnrTshNG) { break Tileloop }
             if ([double]$SSIM -lt $ssimTshNG) { break Tileloop }
             if ([double]$PSNR -lt $psnrTshVE -or [double]$SSIM -lt $ssimTshVE ) {
-              Write-Host ("`r$counter [CheckR] {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $DistortionCause),($msgtmp = "${dirName}\${chkName} PSNR Check now.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -NoNewline
+              Write-metricsInfoLine "`r [CheckR] " $winit $PSNRmin $fPSNR $DistortionCause "${dirName}\${chkName}" 'PSNR Check now.' 'DarkYellow'
               if ($rx + $tilesizeR -gt $width) { $endposSx = $width }
               else { $endposSx = $rx + $tilesizeR }
               if ($ry + $tilesizeR -gt $height) { $endposSy = $height }
@@ -107,7 +137,7 @@ function Search-Metrics ($srcPath, $chkPath, $tVal, $YUVmode, $counter, $Distort
                   if ([double]$PSNR -lt $psnrTshNG) { break Tileloop }
                   if ([double]$SSIM -lt $ssimTshNG) { break Tileloop }
                   else {
-                    Write-Host ("`r$counter [CheckS] {0,-32} {1,-48}" -f ("(PSNR={0,5:F2}dB by {1})" -f $PSNRmin, $DistortionCause),($msgtmp = "${dirName}\${chkName} PSNR Check now.  ").Substring([Math]::Max(0, $msgtmp.Length - 48)) ) -ForegroundColor DarkRed -NoNewline
+                    Write-metricsInfoLine "`r [CheckS] " $winit $PSNRmin $fPSNR $DistortionCause "${dirName}\${chkName}" 'PSNR Check now.' 'DarkRed'
   } } } } } } } } }
   for ($di=0; $di -lt 5; $di++) {
     try { [System.IO.File]::Delete($tstPathA); break }
@@ -117,9 +147,11 @@ function Search-Metrics ($srcPath, $chkPath, $tVal, $YUVmode, $counter, $Distort
     try { [System.IO.File]::Delete($tstPathB); break }
     catch { Start-Sleep -Milliseconds 200 }
   }
+  $result.fPSNR = $fPSNR
+  $result.fSSIM = $fSSIM
   $result.PSNR = $PSNRmin
   $result.SSIM = $SSIMmin
-  return $result  # 戻り値: [ordered]@{ PSNR = <double>; SSIM = <double> }
+  return $result  # 戻り値: [ordered]@{ PSNR = <double>; SSIM = <double> ; fPSNR = <double>; fSSIM = <double>}
 }
 
 Export-ModuleMember -Function Get-Metrics, Search-Metrics

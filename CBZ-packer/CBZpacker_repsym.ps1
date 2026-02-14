@@ -1,4 +1,9 @@
-Get-ChildItem -Directory | ForEach-Object {
+param(
+    [Parameter(Mandatory=$false)]
+    [ValidateScript({Test-Path -LiteralPath $_ -PathType Container})]
+    [string]$Root = "."
+)
+Get-ChildItem -LiteralPath $Root | ForEach-Object {
     $old = $_.Name
     $new = $old
     $new = $new -replace '\^', 'ÅO'

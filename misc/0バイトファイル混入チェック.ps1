@@ -1,12 +1,15 @@
-chcp 65001
-Set-Location -Path $PSScriptRoot
+param(
+    [Parameter(Mandatory=$false)]
+    [ValidateScript({Test-Path -LiteralPath $_ -PathType Container})]
+    [string]$Root = $PSScriptRoot
+)
+
 $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
-$archives = Get-ChildItem -Filter *.cbz
+$archives = Get-ChildItem -LiteralPath $Root -Filter *.cbz
 
 foreach ($archive in $archives) {
     Write-Host "$($archive.Name)"
     $output = & $sevenZip l -slt $archive.FullName
-
     $isFolder = $false
     $currentPath = ""
 
