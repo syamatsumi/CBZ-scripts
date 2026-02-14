@@ -1,6 +1,4 @@
 ﻿param(
-    [Parameter(Mandatory=$false)]
-    [ValidateScript({Test-Path -LiteralPath $_ -PathType Container})]
     [string]$TgtRoot = $PSScriptRoot
 )
 

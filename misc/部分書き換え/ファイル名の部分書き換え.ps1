@@ -1,7 +1,5 @@
 ﻿param(
-    [Parameter(Mandatory=$false)]
-    [ValidateScript({Test-Path -LiteralPath $_ -PathType Container})]
-    [string]$Root = $PSScriptRoot
+    [string]$TgtRoot = $PSScriptRoot
 )
 
 $fromwd = '_Video'
@@ -9,7 +7,7 @@ $toword = '_Movie'
 $fwEsc = [regex]::Escape($fromwd)
 $twEsc = [regex]::Escape($toword)
 
-Get-ChildItem -LiteralPath $Root -File |
+Get-ChildItem -LiteralPath $TgtRoot -File |
   Where-Object Name -imatch $fwEsc |
   ForEach-Object {
     $renName = $_.Name -ireplace $fwEsc, $twEsc

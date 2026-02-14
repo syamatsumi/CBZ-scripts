@@ -1,4 +1,5 @@
 このディレクトリにnihui氏の「waifu2x-ncnn-vulkan」と「realcugan-ncnn-vulkan」が必要です。
+
 ・ [realcugan-ncnn-vulkan (GitHub Releases)](https://github.com/nihui/realcugan-ncnn-vulkan/releases)  
 ・ [waifu2x-ncnn-vulkan (GitHub Releases)](https://github.com/nihui/waifu2x-ncnn-vulkan/releases)  
 

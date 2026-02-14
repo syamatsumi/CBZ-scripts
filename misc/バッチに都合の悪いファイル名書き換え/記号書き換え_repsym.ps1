@@ -1,21 +1,22 @@
 param(
-    [Parameter(Mandatory=$false)]
-    [ValidateScript({Test-Path -LiteralPath $_ -PathType Container})]
-    [string]$Root = "."
+    [string]$TgtRoot = $PSScriptRoot
 )
-Get-ChildItem -LiteralPath $Root | ForEach-Object {
-    $old = $_.Name
+Get-ChildItem -LiteralPath $TgtRoot | ForEach-Object {
+    $old = $_.Name  # 後の比較で利用する
     $new = $old
-    $new = $new -replace '\^', '＾'
-    $new = $new -replace '&', '＆'
-    $new = $new -replace '!', '！'
-    $new = $new -replace '%', '％'
-    $new = $new -replace ';', '；'
-    $new = $new -replace '=', '＝'
-    $new = $new -replace ',', '，'
+    $new = $new -replace '&', '＆'   # アンパサンド
+    $new = $new -replace '!', '！'   # エクスクラメーション
+    $new = $new -replace '%', '％'   # パーセント
+    $new = $new -replace ';', '；'   # セミコロン
+    $new = $new -replace '=', '＝'   # イコール
+    $new = $new -replace ',', '，'   # カンマ
+    $new = $new -replace '`', '｀'   # バッククォート
+    $new = $new -replace '\^', '＾'  # キャレット
+    $new = $new -replace '\$', '＄'  # ドル記号
 
     if ($old -ne $new) {
-        Write-Host "RENAMING: $old → $new"
-        Rename-Item -LiteralPath $old -NewName $new
+        Write-Host "befr : $old"
+        Write-Host "aftr : $new"
+        Rename-Item -LiteralPath $_.FullName -NewName $new
     }
 }

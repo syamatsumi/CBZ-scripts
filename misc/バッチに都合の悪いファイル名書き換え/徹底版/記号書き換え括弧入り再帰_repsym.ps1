@@ -1,7 +1,9 @@
 param(
     [string]$TgtRoot = $PSScriptRoot
 )
-Get-ChildItem -LiteralPath $TgtRoot | ForEach-Object {
+Get-ChildItem -LiteralPath $TgtRoot -Recurse |
+  Sort-Object { $_.FullName.Length } -Descending |  # 深い階層から実施
+  ForEach-Object {
     $old = $_.Name  # 後の比較で利用する
     $new = $old
     $new = $new -replace '&', '＆'   # アンパサンド
@@ -13,6 +15,12 @@ Get-ChildItem -LiteralPath $TgtRoot | ForEach-Object {
     $new = $new -replace '`', '｀'   # バッククォート
     $new = $new -replace '\^', '＾'  # キャレット
     $new = $new -replace '\$', '＄'  # ドル記号
+    $new = $new -replace '\(', '（'  # 括弧
+    $new = $new -replace '\)', '）'  # 括弧
+    $new = $new -replace '\[', '［'  # 配列
+    $new = $new -replace '\]', '］'  # 配列
+    $new = $new -replace '\{', '｛'  # ブロック
+    $new = $new -replace '\}', '｝'  # ブロック
 
     if ($old -ne $new) {
         Write-Host "befr : $old"

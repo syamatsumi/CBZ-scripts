@@ -4,7 +4,7 @@ param(
     [string]$Root = $PSScriptRoot
 )
 
-# _”š ––”ö‚Ì}‚¾‚¯’Šoi‘å•¶š¬•¶š/‘SŠp¬İƒpƒX‚àOKj
+# _æ•°å­— æœ«å°¾ã®æã ã‘æŠ½å‡ºï¼ˆå¤§æ–‡å­—å°æ–‡å­—/å…¨è§’æ··åœ¨ãƒ‘ã‚¹ã‚‚OKï¼‰
 Get-ChildItem -LiteralPath $Root -Recurse -File | ForEach-Object {
   $bn = $_.BaseName
   if ($bn -match '^(?<base>.+)_(?<n>[0-9]+)$') {

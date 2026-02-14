@@ -1,11 +1,9 @@
-param(
-    [Parameter(Mandatory=$false)]
-    [ValidateScript({Test-Path -LiteralPath $_ -PathType Container})]
-    [string]$Root = $PSScriptRoot
+﻿param(
+    [string]$TgtRoot = $PSScriptRoot
 )
 
 $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
-$archives = Get-ChildItem -LiteralPath $Root -Filter *.cbz
+$archives = Get-ChildItem -LiteralPath $TgtRoot -Filter *.cbz
 
 foreach ($archive in $archives) {
     Write-Host "$($archive.Name)"

@@ -10,6 +10,18 @@ if not exist "%ZIP7%" (
     pause
     exit /b 1
 )
+
+rem === ここでパスワードを指定 ===
+set "ZIPPASS=passwords"
+
+echo 展開前に、バッチ実行に邪魔な文字がある場合はファイル名を書き換えます。
+pause
+
+echo === 記号の置換 ===
+set ps1file=記号書き換え_repsym.ps1
+set ps1path=%~dp0%ps1file%
+pwsh -noprofile -executionpolicy bypass -file "%ps1path%"
+
 rem 展開先と一時展開用フォルダの作成
 set EXTDIR=_extract
 set TEMPDIR=_tmp%RANDOM%
@@ -22,7 +34,15 @@ set HH=%HH: =0%
 set TS=%DATE:~0,4%%DATE:~5,2%%DATE:~8,2%%HH%%TIME:~3,2%%TIME:~6,2%%TIME:~9,2%
 
 for %%F in (*.cbz) do (
-    "%ZIP7%" x "%%F" -o"%TEMPDIR%" -aos
+    rem overwrite-aoa skip-aos rename-aou renameext-aot 
+    "%ZIP7%" x "%%F" -o"%TEMPDIR%" -aou -p"%ZIPPASS%"
+
+    echo === 記号の置換 %TEMPDIR% ===
+    copy "%ps1path%" "%TEMPDIR%"
+    pushd "%TEMPDIR%"
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "%ps1file%"
+    del /Q "%ps1file%"
+    popd
 
     rem 展開内容の数を数える
     set /a ITEMCOUNT=0
