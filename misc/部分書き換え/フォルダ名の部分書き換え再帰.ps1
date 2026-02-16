@@ -5,13 +5,14 @@
 $fromwd = '_Video'
 $toword = '_Movie'
 $fwEsc = [regex]::Escape($fromwd)
-$twEsc = [regex]::Escape($toword)
+# 正規表現を使う場合は[regex]::Escape()を外す。
+# $fwEsc = $fromwd
 
 Get-ChildItem -LiteralPath $TgtRoot -Directory -Recurse |
   Sort-Object { $_.FullName.Length } -Descending |  # 深い階層から実施
   Where-Object Name -imatch $fwEsc |
   ForEach-Object {
-    $renName = $_.Name -ireplace $fwEsc, $twEsc
+    $renName = $_.Name -ireplace $fwEsc, $toword
     Write-Host "変更前名:  $($_.Name)"
     Write-Host "変更後名:  $renName"
     Write-Host ""
