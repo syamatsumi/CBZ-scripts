@@ -7,23 +7,23 @@ rem 区切り文字を設定する.
 rem 現在地のフォルダ名を取得.
   pushd "%~dp0"
   for %%# in ("%CD%") do set PARENTNAME=%%~nx#
-  set PREFIX=%PARENTNAME%%DELIMCHAR%
-rem 接頭辞の長さ確認
-  set PREFIXLEN=0
-  set TMPSTR=%PREFIX%
+  set FIXCHAR=%PARENTNAME%%DELIMCHAR%
+rem 接辞の長さ確認
+  set TMPSTR=%FIXCHAR%
+  set FIXLEN=0
 :_len_loop
   if defined TMPSTR (
     set TMPSTR=!TMPSTR:~1!
-    set /a PREFIXLEN+=1
+    set /a FIXLEN+=1
     goto _len_loop
   )
-rem サブフォルダを走査し、現在の名前が PREFIX+名前 の場合はそのままにする.
+rem サブフォルダを処理する.
   for /d %%D in (*) do (
-    set CURRNAME=%%~nxD
-    set CURRHEAD=!CURRNAME:~0,%PREFIXLEN%!
-    set RENAMETO=%PREFIX%%%~nxD
-    if /i "!CURRHEAD!"=="%PREFIX%" (
-      echo スキップ：!CURRNAME! は%PREFIX%が既に付いています.
+    set CURRNAME=%%~nD
+    set CURRHEAD=!CURRNAME:~0,%FIXLEN%!
+    set RENAMETO=%FIXCHAR%!CURRNAME!
+    if /i "!CURRHEAD!"=="%FIXCHAR%" (
+      echo スキップ：!CURRNAME! は%FIXCHAR%が既に付いています.
     ) else if exist "!RENAMETO!" (
       echo スキップ："!RENAMETO!" が既に存在します.
     ) else (
