@@ -1,6 +1,7 @@
 @echo off
 chcp 65001
 cd /d "%~dp0"
+setlocal enabledelayedexpansion
 
 rem === 7Zip パス（必要なら調整） ===
 set ZIP7=%ProgramFiles%\7-Zip\7z.exe
@@ -22,7 +23,6 @@ pause
 
 powershell -noprofile -executionpolicy bypass -file "%SUBSCR_REPSYM%"
 
-setlocal enabledelayedexpansion
 for /d %%D in (*) do (
     set "SKIP=0"
 
