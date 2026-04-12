@@ -3,8 +3,8 @@
 )
 
 # 特定のファイルを事前に削除（掃除）
-$wildcardPath = Join-Path $TgtRoot '*'
-Get-ChildItem -Path $wildcardPath -Recurse -File -Include "desktop.ini","Thumbs.db",".DS_Store" -Force -ErrorAction SilentlyContinue |
+Get-ChildItem -LiteralPath $TgtRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -in @('desktop.ini','Thumbs.db','.DS_Store') } |
   ForEach-Object {
     # まれに属性が邪魔するので Normal にしてから削除
     try { $_.Attributes = 'Normal' } catch {}
