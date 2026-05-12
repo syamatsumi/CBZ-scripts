@@ -22,7 +22,8 @@ rem 接辞の長さ確認
 rem フォルダ内のファイルを処理する.
 for %%D in (*) do (
   set EXT=%%~xD
-  if exist "%%~fD\" (
+  set ATTR=%%~aD
+  if /i "!ATTR:~0,1!"=="d" (
     echo スキップ（ディレクトリ）
   ) else if /i "!EXT!"==".bat" (
     echo スキップ（BAT）：%%D

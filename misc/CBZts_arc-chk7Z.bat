@@ -72,7 +72,7 @@ if "!RC!"=="0" (
   echo [WARN] !FILE!
   set /a CNT_WARN+=1
 ) else (
-  echo [NG  ] !FILE!  RC=!RC!
+  echo [  NG] !FILE!  RC=!RC!
   set /a CNT_NG+=1
 )
 exit /b
