@@ -3,10 +3,11 @@
   [switch]$NoConfirm
 )
 # Replace Symbol script （文字の入替えスクリプト）
-Get-ChildItem -LiteralPath $TgtRoot | ForEach-Object {
+Get-ChildItem -LiteralPath $TgtRoot -Recurse |
+  Sort-Object { $_.FullName.Length } -Descending |  # 深い階層から実施
+  ForEach-Object {
   $old = $_.Name  # 後の比較で利用する
   $new = $old
-  # Windowsのシェルスクリプトで問題を起こすファイル名の文字を変更する。
   $new = $new -replace '&', '＆'   # アンパサンド
   $new = $new -replace '!', '！'   # エクスクラメーション
   $new = $new -replace '%', '％'   # パーセント
@@ -26,6 +27,12 @@ Get-ChildItem -LiteralPath $TgtRoot | ForEach-Object {
   $new = $new -replace '）', '〉'  # 閉じ丸括弧を山括弧に
   $new = $new -replace '［', '〔'  # 開き角括弧を亀甲括弧に
   $new = $new -replace '］', '〕'  # 閉じ角括弧を亀甲括弧に
+  $new = $new -replace '❨', '〈'  # UNC開き丸括弧を山括弧に
+  $new = $new -replace '❩', '〉'  # UNC閉じ丸括弧を山括弧に
+  $new = $new -replace '⟦', '〔'  # UNC開き二重角括弧を亀甲括弧に
+  $new = $new -replace '⟧', '〕'  # UNC閉じ二重角括弧を亀甲括弧に
+  $new = $new -replace '❴', '｛'  # UNC開き波括弧を全角に
+  $new = $new -replace '❵', '｝'  # UNC閉じ波括弧を全角に
 
   # Mac由来の分解された濁点・半濁点などを通常の合成文字へ戻す
   $new = $new.Normalize([System.Text.NormalizationForm]::FormC)
@@ -56,10 +63,7 @@ Get-ChildItem -LiteralPath $TgtRoot | ForEach-Object {
     if ($NoConfirm) {
       Rename-Item -LiteralPath $_.FullName -NewName $new
     } else {
-      $ans = Read-Host "書き換えますか？ Enterで続行 書き換えない場合はNを押して続行。"
-      if ($ans -notmatch "^n") {
-        Rename-Item -LiteralPath $_.FullName -NewName $new
-      }
+      Rename-Item -LiteralPath $_.FullName -NewName $new
     }
   }
 }

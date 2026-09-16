@@ -3,7 +3,9 @@
   [switch]$NoConfirm
 )
 # Replace Symbol script （文字の入替えスクリプト）
-Get-ChildItem -LiteralPath $TgtRoot | ForEach-Object {
+Get-ChildItem -LiteralPath $TgtRoot -Recurse |
+  Sort-Object { $_.FullName.Length } -Descending |  # 深い階層から実施
+  ForEach-Object {
   $old = $_.Name  # 後の比較で利用する
   $new = $old
   # Windowsのシェルスクリプトで問題を起こすファイル名の文字を変更する。
@@ -56,10 +58,7 @@ Get-ChildItem -LiteralPath $TgtRoot | ForEach-Object {
     if ($NoConfirm) {
       Rename-Item -LiteralPath $_.FullName -NewName $new
     } else {
-      $ans = Read-Host "書き換えますか？ Enterで続行 書き換えない場合はNを押して続行。"
-      if ($ans -notmatch "^n") {
-        Rename-Item -LiteralPath $_.FullName -NewName $new
-      }
+      Rename-Item -LiteralPath $_.FullName -NewName $new
     }
   }
 }

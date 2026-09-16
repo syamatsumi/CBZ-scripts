@@ -20,8 +20,10 @@ rem 接辞の長さ確認
     goto _len_loop
   )
 rem サブフォルダを処理する.
-  for /d %%D in (*) do (
-    set CURRNAME=%%~nD
+for /d %%D in (*) do (
+  set ATTR=%%~aD
+  if /i "!ATTR:~0,1!"=="d" (
+    set CURRNAME=%%~nxD
     set CURRHEAD=!CURRNAME:~0,%FIXLEN%!
     set RENAMETO=!CURRNAME:~%FIXLEN%!
     if /i "!CURRHEAD!"=="%FIXCHAR%" (
@@ -33,5 +35,6 @@ rem サブフォルダを処理する.
       )
     )
   )
+)
 popd
 endlocal
